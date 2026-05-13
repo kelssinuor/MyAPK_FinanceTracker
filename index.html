@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Tracker - Michele 2026</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: #f0f2f5; padding: 15px; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; font-size: 1.4rem; margin-bottom: 20px; color: #2c3e50; }
+        
+        .card { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e9ecef; }
+        label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; color: #666; }
+        
+        input, select, button { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+        .input-row { display: flex; gap: 8px; }
+        .input-row select { flex: 1; }
+        .input-row input { flex: 2; }
+        
+        button { background-color: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button:active { transform: scale(0.95); }
+
+        .btn-delete { background-color: #ff7675; color: white; width: auto; padding: 8px 15px; font-size: 0.85rem; border: none; border-radius: 8px; }
+
+        /* Summary Styling */
+        .summary { margin: 20px 0; padding: 15px; border-top: 2px solid #eee; background: #fff; border-radius: 12px; }
+        .summary-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; }
+        .estimate-box { background: #eef2f7; padding: 12px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #3498db; }
+        .estimate-item { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px; color: #2c3e50; }
+        
+        #balance { color: #2ecc71; font-size: 1.2rem; }
+        #total-expense { color: #e74c3c; }
+        .highlight { color: #2980b9; font-weight: bold; }
+
+        .status-box { padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-top: 10px; }
+        .aman { background-color: #d4edda; color: #155724; }
+        .over { background-color: #f8d7da; color: #721c24; }
+
+        canvas { margin: 20px 0; max-height: 180px; }
+        ul { list-style: none; margin-top: 20px; }
+        li { background: #fff; border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #ccc; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        li.income { border-left-color: #2ecc71; }
+        li.expense { border-left-color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Finance Tracker 2026</h1>
+
+    <div class="card">
+        <label>Limit Budget Bulan Ini (Rp)</label>
+        <input type="number" id="monthly-budget" placeholder="Set limit budget..." oninput="render()">
+        
+        <label>Filter Tampilan Bulan</label>
+        <select id="filter-month" onchange="render()">
+            <option value="all">Semua Data</option>
+            <option value="0">Januari</option>
+            <option value="1">Februari</option>
+            <option value="2">Maret</option>
+            <option value="3">April</option>
+            <option value="4" selected>Mei</option>
+            <option value="5">Juni</option>
+            <option value="6">Juli</option>
+            <option value="7">Agustus</option>
+            <option value="8">September</option>
+            <option value="9">Oktober</option>
+            <option value="10">November</option>
+            <option value="11">Desember</option>
+        </select>
+    </div>
+
+    <form id="finance-form" class="card">
+        <label>Tanggal Transaksi</label>
+        <input type="date" id="transaction-date" required>
+        <div class="input-row">
+            <select id="type">
+                <option value="expense">Keluar</option>
+                <option value="income">Masuk</option>
+            </select>
+            <input type="text" id="item-name" placeholder="Nama Barang" required>
+        </div>
+        <input type="number" id="amount" placeholder="Nominal Rp" required>
+        <button type="submit">Tambah Transaksi</button>
+    </form>
+
+    <div class="summary">
+        <div class="summary-item"><span>Total Saldo:</span><span id="balance">Rp 0</span></div>
+        <div class="summary-item"><span>Keluar Bulan Ini:</span><span id="total-expense">Rp 0</span></div>
+        
+        <div id="estimate-section" class="estimate-box">
+            <div class="estimate-item">
+                <span>Sisa Budget:</span>
+                <span id="remaining-budget" class="highlight">Rp 0</span>
+            </div>
+            <div class="estimate-item">
+                <span>Jatah Harian Sisa Bulan:</span>
+                <span id="daily-quota" class="highlight">Rp 0</span>
+            </div>
+        </div>
+
+        <div id="status-limit" class="status-box aman">Status: Aman ✅</div>
+    </div>
+
+    <canvas id="myChart"></canvas>
+    <ul id="transaction-list"></ul>
+    
+    <button onclick="clearAllData()" style="background-color: #636e72; margin-top: 30px; font-size: 0.8rem;">Reset Semua Data</button>
+</div>
+
+<script>
+    let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    let myChart = null;
+    document.getElementById('transaction-date').valueAsDate = new Date();
+
+    const form = document.getElementById('finance-form');
+    form.addEventListener('submit', (e) => { e.preventDefault(); addTransaction(); });
+
+    function addTransaction() {
+        const dateVal = document.getElementById('transaction-date').value;
+        const name = document.getElementById('item-name').value;
+        const amount = parseFloat(document.getElementById('amount').value);
+        const type = document.getElementById('type').value;
+
+        if (name && !isNaN(amount) && dateVal) {
+            const selectedDate = new Date(dateVal);
+            const newTransaction = {
+                id: Date.now() + Math.random(), 
+                name, 
+                amount: type === 'expense' ? -amount : amount, 
+                type, 
+                month: selectedDate.getMonth(), 
+                dateStr: selectedDate.toLocaleDateString('id-ID')
+            };
+            transactions.push(newTransaction);
+            saveData();
+            form.reset();
+            document.getElementById('transaction-date').valueAsDate = new Date();
+            render();
+        }
+    }
+
+    function render() {
+        const selectedMonth = document.getElementById('filter-month').value;
+        const budgetLimit = parseFloat(document.getElementById('monthly-budget').value) || 0;
+        const list = document.getElementById('transaction-list');
+        list.innerHTML = '';
+
+        let filtered = selectedMonth === "all" ? transactions : transactions.filter(t => t.month == selectedMonth);
+        let inc = 0, exp = 0;
+
+        filtered.forEach(t => {
+            if (t.amount > 0) inc += t.amount; else exp += Math.abs(t.amount);
+            const li = document.createElement('li');
+            li.className = t.type;
+            li.innerHTML = `<div class="li-info"><strong>${t.name}</strong><small>${t.dateStr}</small></div>
+                            <div class="li-amount">${t.amount.toLocaleString('id-ID')}</div>
+                            <button class="btn-delete" onclick="hapusData(${t.id})">Hapus</button>`;
+            list.appendChild(li);
+        });
+
+        // UPDATE UI
+        const totalBalance = transactions.reduce((sum, t) => sum + t.amount, 0);
+        document.getElementById('balance').innerText = `Rp ${totalBalance.toLocaleString('id-ID')}`;
+        document.getElementById('total-expense').innerText = `Rp ${exp.toLocaleString('id-ID')}`;
+
+        // LOGIKA ESTIMASI
+        calculateEstimation(budgetLimit, exp);
+
+        // Status Limit
+        const status = document.getElementById('status-limit');
+        if (budgetLimit > 0 && exp > budgetLimit) {
+            status.innerText = "Over Budget! 🚨"; status.className = "status-box over";
+        } else {
+            status.innerText = "Status: Aman ✅"; status.className = "status-box aman";
+        }
+
+        updateChart(inc, exp);
+    }
+
+    function calculateEstimation(limit, exp) {
+        const estimateSection = document.getElementById('estimate-section');
+        if (limit <= 0) {
+            estimateSection.style.display = 'none';
+            return;
+        }
+        estimateSection.style.display = 'block';
+
+        const sisaBudget = limit - exp;
+        document.getElementById('remaining-budget').innerText = `Rp ${sisaBudget.toLocaleString('id-ID')}`;
+
+        // Hitung sisa hari dalam bulan ini
+        const now = new Date();
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const daysLeft = lastDay - now.getDate() + 1; // Termasuk hari ini
+
+        const jatahHarian = sisaBudget > 0 ? sisaBudget / daysLeft : 0;
+        document.getElementById('daily-quota').innerText = `Rp ${Math.floor(jatahHarian).toLocaleString('id-ID')} / hari`;
+    }
+
+    window.hapusData = (id) => { if (confirm("Hapus?")) { transactions = transactions.filter(t => t.id != id); saveData(); render(); } };
+    window.clearAllData = () => { if (confirm("Hapus SEMUA?")) { transactions = []; saveData(); render(); } };
+    function saveData() { localStorage.setItem('transactions', JSON.stringify(transactions)); }
+
+    function updateChart(inc, exp) {
+        const ctx = document.getElementById('myChart').getContext('2d');
+        if (myChart) myChart.destroy();
+        if (inc === 0 && exp === 0) { ctx.canvas.style.display = 'none'; return; }
+        ctx.canvas.style.display = 'block';
+        myChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: ['Masuk', 'Keluar'], datasets: [{ data: [inc, exp], backgroundColor: ['#2ecc71', '#e74c3c'] }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    render();
+</script>
+</body>
+</html>
