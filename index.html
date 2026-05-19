@@ -27,12 +27,20 @@
         /* Summary Styling */
         .summary { margin: 20px 0; padding: 15px; border-top: 2px solid #eee; background: #fff; border-radius: 12px; }
         .summary-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; }
+        
         .estimate-box { background: #eef2f7; padding: 12px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #3498db; }
-        .estimate-item { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px; color: #2c3e50; }
+        .estimate-item { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 8px; color: #2c3e50; }
+        
+        /* Kalkulator Mini Style */
+        .calc-box { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1; }
+        .calc-input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .calc-input-row input { width: 70px; padding: 5px; margin: 0; text-align: center; font-size: 0.9rem; }
+        .calc-text { font-size: 0.85rem; color: #555; }
         
         #balance { color: #2ecc71; font-size: 1.2rem; }
         #total-expense { color: #e74c3c; }
         .highlight { color: #2980b9; font-weight: bold; }
+        .highlight-orange { color: #e67e22; font-weight: bold; }
 
         .status-box { padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-top: 10px; }
         .aman { background-color: #d4edda; color: #155724; }
@@ -48,7 +56,7 @@
 <body>
 
 <div class="container">
-    <h1>Keuangan Gue</h1>
+    <h1>Finance Tracker 2026</h1>
 
     <div class="card">
         <label>Limit Budget Bulan Ini (Rp)</label>
@@ -99,6 +107,18 @@
                 <span>Jatah Harian Sisa Bulan:</span>
                 <span id="daily-quota" class="highlight">Rp 0</span>
             </div>
+
+            <div class="calc-box">
+                <div class="calc-input-row">
+                    <span class="calc-text">Prediksi untuk</span>
+                    <input type="number" id="custom-days" value="7" min="1" oninput="calculateCustomForecast()">
+                    <span class="calc-text">Hari ke depan:</span>
+                </div>
+                <div class="estimate-item" style="margin-top: 5px; margin-bottom: 0;">
+                    <span class="calc-text">Jatah per hari seharusnya:</span>
+                    <span id="custom-quota" class="highlight-orange">Rp 0 / hari</span>
+                </div>
+            </div>
         </div>
 
         <div id="status-limit" class="status-box aman">Status: Aman ✅</div>
@@ -113,6 +133,8 @@
 <script>
     let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
     let myChart = null;
+    let globalSisaBudget = 0; // Variabel bantuan untuk kalkulator custom
+
     document.getElementById('transaction-date').valueAsDate = new Date();
 
     const form = document.getElementById('finance-form');
@@ -188,20 +210,39 @@
         }
         estimateSection.style.display = 'block';
 
-        const sisaBudget = limit - exp;
-        document.getElementById('remaining-budget').innerText = `Rp ${sisaBudget.toLocaleString('id-ID')}`;
+        globalSisaBudget = limit - exp; // Masukkan ke variabel global
+        document.getElementById('remaining-budget').innerText = `Rp ${globalSisaBudget.toLocaleString('id-ID')}`;
 
-        // Hitung sisa hari dalam bulan ini
+        // Hitung sisa hari otomatis dalam bulan ini
         const now = new Date();
         const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const daysLeft = lastDay - now.getDate() + 1; // Termasuk hari ini
+        const daysLeft = lastDay - now.getDate() + 1;
 
-        const jatahHarian = sisaBudget > 0 ? sisaBudget / daysLeft : 0;
+        const jatahHarian = globalSisaBudget > 0 ? globalSisaBudget / daysLeft : 0;
         document.getElementById('daily-quota').innerText = `Rp ${Math.floor(jatahHarian).toLocaleString('id-ID')} / hari`;
+
+        // Panggil fungsi hitung kalkulator custom hari
+        calculateCustomForecast();
+    }
+
+    // FUNGSI BARU: Hitung Request Hari Suka-Suka User
+    function calculateCustomForecast() {
+        const customDaysInput = document.getElementById('custom-days');
+        const customDays = parseInt(customDaysInput.value) || 0;
+        const customQuotaText = document.getElementById('custom-quota');
+
+        if (customDays <= 0) {
+            customQuotaText.innerText = "Rp 0 / hari";
+            return;
+        }
+
+        // Rumus kalkulator: Sisa budget dibagi request hari dari user
+        const jatahCustom = globalSisaBudget > 0 ? globalSisaBudget / customDays : 0;
+        customQuotaText.innerText = `Rp ${Math.floor(jatahCustom).toLocaleString('id-ID')} / hari`;
     }
 
     window.hapusData = (id) => { if (confirm("Hapus?")) { transactions = transactions.filter(t => t.id != id); saveData(); render(); } };
-    window.clearAllData = () => { if (confirm("Hapus SEMUA?")) { transactions = []; saveData(); render(); } };
+    window.clearAllData = () => { if (confirm("Hapus SEMUA?")) { transactions = []; saveData(); statusLogin(); render(); } };
     function saveData() { localStorage.setItem('transactions', JSON.stringify(transactions)); }
 
     function updateChart(inc, exp) {
